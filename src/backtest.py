@@ -68,17 +68,19 @@ class MacroBacktester:
         
         try:
             # Загрузка исторических данных
-            historical_data = await self._load_historical_data(symbol, start_date, end_date)
-            
+            # historical_data = await self._load_historical_data(symbol, start_date, end_date) # Закомментировано для использования заглушки
+            historical_data = self._get_mock_historical_data(start_date, end_date)
+
+
             if not historical_data:
                 self.logger.error("Failed to load historical data")
                 return {
                     "success": False,
                     "message": "Failed to load historical data"
                 }
-            
-            self.logger.info(f"Loaded {len(historical_data)} historical data points")
-            
+
+            self.logger.info(f"Loaded {len(historical_data)} historical data points (mocked)")
+
             # Начальный капитал
             current_capital = initial_capital
             
@@ -155,61 +157,143 @@ class MacroBacktester:
             }
         finally:
             # Закрытие соединения с биржей
-            await self.exchange.close()
-            self.logger.info("Exchange connection closed")
+            # await self.exchange.close() # Закомментировано, так как биржа не используется с заглушкой
+            self.logger.info("Exchange connection closed (mocked run)")
     
-    async def _load_historical_data(self, symbol: str, start_date: str, end_date: str) -> List[Dict]:
+    # async def _load_historical_data(self, symbol: str, start_date: str, end_date: str) -> List[Dict]: # Закомментировано, чтобы использовать заглушку
+    #     """
+    #     Загрузка исторических данных.
+    #     """
+    #     try:
+    #         # Преобразование дат в timestamp
+    #         start_timestamp = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
+    #         end_timestamp = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000)
+
+    #         # Загрузка данных по частям (максимум 1000 свечей за раз)
+    #         all_candles = []
+    #         current_timestamp = start_timestamp
+
+    #         while current_timestamp < end_timestamp:
+    #             # Загрузка свечей
+    #             candles = await self.exchange.get_candles(
+    #                 symbol=symbol,
+    #                 timeframe='1m',
+    #                 limit=1000
+    #             )
+
+    #             if not candles:
+    #                 break
+
+    #             # Добавление свечей
+    #             all_candles.extend(candles)
+
+    #             # Обновление timestamp
+    #             current_timestamp = candles[-1]['timestamp'] + 60000  # +1 минута
+
+    #             # Пауза, чтобы не превысить лимиты API
+    #             await asyncio.sleep(1)
+
+    #         # Фильтрация по дате
+    #         filtered_candles = [
+    #             candle for candle in all_candles
+    #             if start_timestamp <= candle['timestamp'] <= end_timestamp
+    #         ]
+
+    #         return filtered_candles
+
+    #     except Exception as e:
+    #         self.logger.error(f"Error loading historical data: {str(e)}")
+    #         return []
+
+    def _get_mock_historical_data(self, start_date_str: str, end_date_str: str) -> List[Dict]:
         """
-        Загрузка исторических данных.
+        Генерирует моковые исторические данные для бэктестирования.
+        """
+        self.logger.info(f"Generating mock historical data from {start_date_str} to {end_date_str}")
+        data = []
+        start_dt = datetime.datetime.strptime(start_date_str, '%Y-%m-%d')
+        end_dt = datetime.datetime.strptime(end_date_str, '%Y-%m-%d')
+        current_dt = start_dt
+
+        base_price = 100.0
+        idx = 0
+        while current_dt <= end_dt:
+            for minute in range(24 * 60): # Генерируем минутные свечи
+                timestamp = int(current_dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000) + minute * 60000
+                # Простая синусоида для имитации колебаний цены
+                open_price = base_price + np.sin(idx / 60.0) * 5
+                close_price = open_price + np.random.uniform(-0.5, 0.5)
+                high_price = max(open_price, close_price) + np.random.uniform(0, 0.2)
+                low_price = min(open_price, close_price) - np.random.uniform(0, 0.2)
+                volume = np.random.uniform(1, 10)
+
+                data.append({
+                    'timestamp': timestamp,
+                    'open': open_price,
+                    'high': high_price,
+                    'low': low_price,
+                    'close': close_price,
+                    'volume': volume
+                })
+                idx +=1
+            current_dt += datetime.timedelta(days=1)
         
-        Args:
-            symbol: Торговая пара
-            start_date: Начальная дата
-            end_date: Конечная дата
+        self.logger.info(f"Generated {len(data)} mock data points.")
+        return data
+
+    # Закомментировал оригинальную функцию _load_historical_data
+    # async def _load_historical_data(self, symbol: str, start_date: str, end_date: str) -> List[Dict]:
+    #     """
+    #     Загрузка исторических данных.
+
+    #     Args:
+    #         symbol: Торговая пара
+    #         start_date: Начальная дата
+    #         end_date: Конечная дата
             
-        Returns:
-            List[Dict]: Исторические данные
-        """
-        try:
-            # Преобразование дат в timestamp
-            start_timestamp = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
-            end_timestamp = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000)
+    #     Returns:
+    #         List[Dict]: Исторические данные
+    #     """
+    #     try:
+    #         # Преобразование дат в timestamp
+    #         start_timestamp = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
+    #         end_timestamp = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000)
             
-            # Загрузка данных по частям (максимум 1000 свечей за раз)
-            all_candles = []
-            current_timestamp = start_timestamp
+    #         # Загрузка данных по частям (максимум 1000 свечей за раз)
+    #         all_candles = []
+    #         current_timestamp = start_timestamp
             
-            while current_timestamp < end_timestamp:
-                # Загрузка свечей
-                candles = await self.exchange.get_candles(
-                    symbol=symbol,
-                    timeframe='1m',
-                    limit=1000
-                )
+    #         while current_timestamp < end_timestamp:
+    #             # Загрузка свечей
+    #             candles = await self.exchange.get_candles(
+    #                 symbol=symbol,
+    #                 timeframe='1m',
+    #                 limit=1000
+    #             )
                 
-                if not candles:
-                    break
+    #             if not candles:
+    #                 break
                 
-                # Добавление свечей
-                all_candles.extend(candles)
+    #             # Добавление свечей
+    #             all_candles.extend(candles)
                 
-                # Обновление timestamp
-                current_timestamp = candles[-1]['timestamp'] + 60000  # +1 минута
+    #             # Обновление timestamp
+    #             current_timestamp = candles[-1]['timestamp'] + 60000  # +1 минута
                 
-                # Пауза, чтобы не превысить лимиты API
-                await asyncio.sleep(1)
+    #             # Пауза, чтобы не превысить лимиты API
+    #             await asyncio.sleep(1)
             
-            # Фильтрация по дате
-            filtered_candles = [
-                candle for candle in all_candles
-                if start_timestamp <= candle['timestamp'] <= end_timestamp
-            ]
+    #         # Фильтрация по дате
+    #         filtered_candles = [
+    #             candle for candle in all_candles
+    #             if start_timestamp <= candle['timestamp'] <= end_timestamp
+    #         ]
             
-            return filtered_candles
+    #         return filtered_candles
             
-        except Exception as e:
-            self.logger.error(f"Error loading historical data: {str(e)}")
-            return []
+    #     except Exception as e:
+    #         self.logger.error(f"Error loading historical data: {str(e)}")
+    #         return []
     
     def _group_by_day(self, candles: List[Dict]) -> List[List[Dict]]:
         """
