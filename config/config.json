@@ -1,0 +1,16 @@
+{
+    "api_key": "",
+    "api_secret": "",
+    "testnet": true,
+    "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+    "risk_per_trade": 0.02,
+    "check_interval": 60,
+    "macro_intervals": [
+        {"start": "09:50", "end": "10:10", "name": "NY Morning"},
+        {"start": "10:50", "end": "11:10", "name": "NY Mid-Morning"},
+        {"start": "13:50", "end": "14:10", "name": "NY Afternoon"},
+        {"start": "15:50", "end": "16:10", "name": "NY Late Afternoon"}
+    ],
+    "logging_level": "INFO",
+    "log_file": "logs/macro_bot.log"
+}
