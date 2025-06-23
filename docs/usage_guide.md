@@ -66,6 +66,12 @@ python -m src.backtest --symbol BTCUSDT --start 2023-01-01 --end 2023-06-01
 - `--start`: Начальная дата (формат: YYYY-MM-DD)
 - `--end`: Конечная дата (формат: YYYY-MM-DD)
 - `--config`: (опционально) Путь к конфигурационному файлу
+- `--data-csv`: (опционально) Путь к CSV-файлу с историческими данными. Если указан, данные будут загружаться из этого файла вместо обращения к API биржи. Формат CSV должен содержать колонки: `timestamp` (Unix timestamp в миллисекундах), `open`, `high`, `low`, `close`, `volume`.
+
+Пример использования с CSV:
+```bash
+python -m src.backtest --symbol BTCUSDT --start 2023-01-01 --end 2023-01-31 --data-csv data/my_btc_data.csv
+```
 
 ## Структура проекта
 

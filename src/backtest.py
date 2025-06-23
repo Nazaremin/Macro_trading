@@ -68,8 +68,13 @@ class MacroBacktester:
         
         try:
             # Загрузка исторических данных
-            # historical_data = await self._load_historical_data(symbol, start_date, end_date) # Закомментировано для использования заглушки
-            historical_data = self._get_mock_historical_data(start_date, end_date)
+            if self.config.get("data_csv_path"):
+                historical_data = self._load_historical_data_from_csv(
+                    self.config["data_csv_path"], start_date, end_date
+                )
+            else:
+                # historical_data = await self._load_historical_data(symbol, start_date, end_date) # Закомментировано для использования заглушки
+                historical_data = self._get_mock_historical_data(start_date, end_date)
 
 
             if not historical_data:
@@ -79,7 +84,11 @@ class MacroBacktester:
                     "message": "Failed to load historical data"
                 }
 
-            self.logger.info(f"Loaded {len(historical_data)} historical data points (mocked)")
+            if self.config.get("data_csv_path"):
+                self.logger.info(f"Loaded {len(historical_data)} data points from CSV path: {self.config.get('data_csv_path')}")
+            else:
+                self.logger.info(f"Loaded {len(historical_data)} historical data points (mocked)")
+
 
             # Начальный капитал
             current_capital = initial_capital
@@ -241,6 +250,52 @@ class MacroBacktester:
         self.logger.info(f"Generated {len(data)} mock data points.")
         return data
 
+    def _load_historical_data_from_csv(self, csv_path: str, start_date_str: str, end_date_str: str) -> List[Dict]:
+        """
+        Загрузка исторических данных из CSV-файла.
+        Фильтрует данные по указанному диапазону дат.
+        Ожидаемые колонки: timestamp, open, high, low, close, volume
+        """
+        self.logger.info(f"Loading historical data from CSV: {csv_path}")
+        try:
+            df = pd.read_csv(csv_path)
+
+            # Преобразование timestamp в datetime для фильтрации
+            df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+            start_dt = datetime.datetime.strptime(start_date_str, '%Y-%m-%d')
+            # Для end_date берем конец дня, чтобы включить все свечи этого дня
+            end_dt = datetime.datetime.strptime(end_date_str, '%Y-%m-%d').replace(hour=23, minute=59, second=59, microsecond=999999)
+
+            # Фильтрация по дате
+            df_filtered = df[(df['datetime'] >= start_dt) & (df['datetime'] <= end_dt)]
+
+            if df_filtered.empty:
+                self.logger.warning(f"No data found in CSV for the period {start_date_str} - {end_date_str}")
+                return []
+
+            # Преобразование DataFrame обратно в список словарей
+            # Убедимся, что все необходимые колонки имеют правильный тип
+            df_filtered = df_filtered[['timestamp', 'open', 'high', 'low', 'close', 'volume']].astype({
+                'timestamp': 'int64', # Убедимся, что timestamp - это int
+                'open': 'float',
+                'high': 'float',
+                'low': 'float',
+                'close': 'float',
+                'volume': 'float'
+            })
+
+            historical_data = df_filtered.to_dict('records')
+            self.logger.info(f"Loaded {len(historical_data)} data points from CSV for the specified period.")
+            return historical_data
+
+        except FileNotFoundError:
+            self.logger.error(f"CSV file not found: {csv_path}")
+            return []
+        except Exception as e:
+            self.logger.error(f"Error loading data from CSV {csv_path}: {str(e)}")
+            return []
+
     # Закомментировал оригинальную функцию _load_historical_data
     # async def _load_historical_data(self, symbol: str, start_date: str, end_date: str) -> List[Dict]:
     #     """
@@ -250,7 +305,7 @@ class MacroBacktester:
     #         symbol: Торговая пара
     #         start_date: Начальная дата
     #         end_date: Конечная дата
-            
+
     #     Returns:
     #         List[Dict]: Исторические данные
     #     """
@@ -258,11 +313,11 @@ class MacroBacktester:
     #         # Преобразование дат в timestamp
     #         start_timestamp = int(datetime.datetime.strptime(start_date, '%Y-%m-%d').timestamp() * 1000)
     #         end_timestamp = int(datetime.datetime.strptime(end_date, '%Y-%m-%d').timestamp() * 1000)
-            
+
     #         # Загрузка данных по частям (максимум 1000 свечей за раз)
     #         all_candles = []
     #         current_timestamp = start_timestamp
-            
+
     #         while current_timestamp < end_timestamp:
     #             # Загрузка свечей
     #             candles = await self.exchange.get_candles(
@@ -1101,7 +1156,7 @@ class MacroBacktester:
         else:
             plt.show()
 
-async def run_backtest(symbol: str, start_date: str, end_date: str, config_path: str = None):
+async def run_backtest(symbol: str, start_date: str, end_date: str, config_path: str = None, data_csv_path: str = None):
     """
     Запуск бэктеста из командной строки.
     
@@ -1110,6 +1165,7 @@ async def run_backtest(symbol: str, start_date: str, end_date: str, config_path:
         start_date: Начальная дата
         end_date: Конечная дата
         config_path: Путь к конфигурационному файлу
+        data_csv_path: Путь к CSV файлу с историческими данными (опционально)
     """
     # Загрузка конфигурации
     if config_path:
@@ -1129,6 +1185,10 @@ async def run_backtest(symbol: str, start_date: str, end_date: str, config_path:
             "logging_level": "INFO"
         }
     
+    # Если указан путь к CSV, добавляем его в конфигурацию
+    if data_csv_path:
+        config["data_csv_path"] = data_csv_path
+
     try:
         # Создание и запуск бэктестера
         backtester = MacroBacktester(config)
@@ -1161,7 +1221,8 @@ if __name__ == "__main__":
     parser.add_argument('--start', type=str, required=True, help='Start date (YYYY-MM-DD)')
     parser.add_argument('--end', type=str, required=True, help='End date (YYYY-MM-DD)')
     parser.add_argument('--config', type=str, help='Path to config file')
+    parser.add_argument('--data-csv', type=str, help='Path to CSV file with historical data')
     
     args = parser.parse_args()
     
-    asyncio.run(run_backtest(args.symbol, args.start, args.end, args.config))
+    asyncio.run(run_backtest(args.symbol, args.start, args.end, args.config, data_csv_path=args.data_csv))
